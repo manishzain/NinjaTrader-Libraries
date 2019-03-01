@@ -1,3 +1,14 @@
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// 	Addon			:	Chart Debugger Window																		//
+//	Description		:	Helps debugging the indicators and strategies												//
+//	Author			:	Puvox Software (contact@puvox.software)	: Tazo Todua										//
+//	URL				:	https://puvox.software/blog/chart-debugger-window-printbox-for-ninjatrader/					//
+//	History																											//
+//		01.03.2019	: 	1.00	Initial version 																	//
+//	License			: 	CopyRight @  Free for personal use only.													//
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 #region Using declarations
 using System;
 using System.Collections.Generic;
@@ -24,18 +35,7 @@ using System.IO;
 #endregion
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// 	Addon			:	Chart Debugger Window																		//
-//	Description		:	Helps debugging the indicators and strategies												//
-//	Author			:	Puvox Software (contact@puvox.software)	: Tazo Todua										//
-//	URL				:	https://puvox.software/blog/chart-debugger-window-printbox-for-ninjatrader/					//
-//	History																											//
-//		01.03.2019	: 	1.00	Initial version 																	//
-//	License			: 	Apache																						//
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
- #region Extend the Strategy & Indicator classes
+#region Extend the Strategy & Indicator classes
 namespace NinjaTrader.NinjaScript.Strategies
 {
 	
@@ -108,6 +108,7 @@ namespace Library_PuvoxSoftware
 		public NinjaTrader.NinjaScript.Indicators.Indicator indi;
 		public NinjaTrader.NinjaScript.NinjaScriptBase indi_or_strat;
 		
+		private string nl =  Environment.NewLine;
 		
 		ChartControl chartControl;
 		ChartPanel chartPnl;
@@ -187,11 +188,11 @@ namespace Library_PuvoxSoftware
 			return false;
 		}
 		
-		public Dictionary<string, string> dataDict = new Dictionary<string,string>();
+		public Dictionary<string, string> primaryDict = new Dictionary<string,string>();
+		public Dictionary<string, string> secondaryDict = new Dictionary<string,string>();
 		public static Form lastForm;
 		public void createForm()
 		{
-			
 			logForm = new Form();
 			logForm.Width = (lastForm != null ? lastForm.Width : 310);
 			logForm.Height = (lastForm != null ? lastForm.Height : 450);
@@ -265,8 +266,20 @@ namespace Library_PuvoxSoftware
 							
 							int barIdx = indi_or_strat.CurrentBars[0]-clicked_Bar-1;  //indi.CurrentBars[0]
 							string bn = Library_PuvoxSoftware.Methods.barIdentifier( indi_or_strat, barIdx );
+							string bn_prev = Library_PuvoxSoftware.Methods.barIdentifier( indi_or_strat, barIdx+1 );
 							//IBar thebar = GetBarFromX(e.X);
-							textarea.Text =  dataDict.ContainsKey(bn) ? dataDict[ bn ] : "";
+							
+							string primary	= ( primaryDict.ContainsKey(bn)	? primaryDict[ bn ]		: "" );
+							/*
+							string secondary= ( secondaryDict.ContainsKey(bn_prev) ? secondaryDict[ bn_prev ]	: "" );
+							string final_text =   (secondary == "" ? "" : secondary + nl +  "<<< BarsInProgress: 0 >>>"+ nl) + primary	;
+							*/
+							string warning_message = nl + "############ Warning ############" +  nl + "The following BIP data is used to form the next Primary BAR."+  nl + "To understand DataSeries better, read: - https://goo.gl/ScpDkN"+nl+"##############################"+nl;
+							string secondary= ( secondaryDict.ContainsKey(bn) ? warning_message +  secondaryDict[bn]	: "" );
+							
+							string final_text =  primary + secondary;
+							textarea.Text = final_text;
+								
 							DrawVerticalLine( bars.GetTime(clicked_Bar+1) );
 						}
 					}
@@ -275,26 +288,31 @@ namespace Library_PuvoxSoftware
 		}
 		 
 		
-		public void PRINT(object text1) { PRINT(text1, ""); }
-		public void PRINT(object text1, object text2)
+		public void PRINT(object text1, object text2) { 
+			PRINT(  (text1 == null ? "null" : (text1 is double ? ((double)text1).ToString("N6") : text1.ToString() )) + " : "+ (text1 == null ? "null" : (text1 is double ? ((double)text1).ToString("N6") : text1.ToString() )) ); 
+		}
+		public void PRINT(object text1)
 		{
 			if (!enabled) return;
 			if (checkForDeregister()) return; 
 			if(indi_or_strat.CurrentBars[0] <1  || indi_or_strat.CurrentBar <1 ) return;
-			string bn = Library_PuvoxSoftware.Methods.barIdentifier( indi_or_strat, 0 );   
-			DateTime barTime = indi_or_strat.Times[0][0]; //BarsArray[0].GetTime(barNumb);
-			dataDict[bn] = 
-				(dataDict.ContainsKey(bn) ?  dataDict[bn] : barTime.ToString("HH:mm:ss   dd/MMM/yyyy") + " [ BarN: "+indi_or_strat.CurrentBars[0] + "]" + Environment.NewLine + "----------------------------"  )
-				+ Environment.NewLine;
-			if ( indi_or_strat.CurrentBars.Length > 1 && indi_or_strat.BarsInProgress != 0 )
-				dataDict[bn] +="[ "+indi_or_strat.Time[0].ToString("dd MMM>HH:mm:ss ") + " n:"+ indi_or_strat.CurrentBar +" ] ";
-
-			dataDict[bn] += text1 == null ? "null" : (text1 is double ? ((double)text1).ToString("N6") : text1.ToString() );
-			dataDict[bn] += text2 == null ? "null" : (text2 is double ? ((double)text2).ToString("N6") : text2.ToString() );
-			indi_or_strat.Print("a3");
+			string BN_current = Library_PuvoxSoftware.Methods.barIdentifier( indi_or_strat, 0 );  
+			string currText = ( text1 == null ? "null" : (text1 is double ? ((double)text1).ToString("N6") : text1.ToString() ) ) + nl;
+			
+			if ( indi_or_strat.BarsInProgress == 0 )
+			{
+																			//indi_or_strat.BarsArray[0].GetTime(barNumb)
+				primaryDict[BN_current] = (primaryDict.ContainsKey(BN_current) ? primaryDict[BN_current]  : (indi_or_strat.Times[0][0]).ToString("HH:mm:ss   dd/MMM/yyyy") + " [ BarN: "+indi_or_strat.CurrentBars[0] + "]" + nl + "----------------------------"  + nl  ) ;
+				primaryDict[BN_current] += currText; 
+			}
+			else
+			{
+				// If this is exected on 2nd timeframe (i.e. from BarsInProgress =1 ), then we should write that for prev.bar, as the bars timestamps are on endings:  https://puvox.software/blog/ninjatrader-multi-timeframe-bevahior-in-realtime-vs-historical/
+				secondaryDict[BN_current] =  (secondaryDict.ContainsKey(BN_current) ? secondaryDict[BN_current]  : "") ;
+				secondaryDict[BN_current] += "•BIP:"+ indi_or_strat.BarsInProgress + " • " + indi_or_strat.Time[0].ToString("dd MMM>HH:mm:ss ") + "PrimaryTF_BN:"+indi_or_strat.CurrentBars[0] + "; ThisTF_BN:"+ indi_or_strat.CurrentBar +" ] " + currText ;
+			}
 		}
    
-		
 		
 		int randLast; 
 		
